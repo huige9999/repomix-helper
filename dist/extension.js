@@ -37,6 +37,15 @@ module.exports = __toCommonJS(extension_exports);
 var vscode = __toESM(require("vscode"));
 var path = __toESM(require("path"));
 var KEY = "repomixHelper.lists";
+var outputChannel;
+var statusRunItem;
+var statusClearItem;
+function getOutput() {
+  if (!outputChannel) {
+    outputChannel = vscode.window.createOutputChannel("Repomix Helper");
+  }
+  return outputChannel;
+}
 function uniqSorted(arr) {
   return Array.from(new Set(arr)).sort();
 }
@@ -56,25 +65,46 @@ async function saveLists(ctx, lists) {
     ignore: uniqSorted(lists.ignore)
   });
 }
-async function addPath(ctx, kind, uri) {
-  if (!uri) {
+async function updateStatusBar(ctx) {
+  if (!statusRunItem || !statusClearItem) return;
+  const lists = await loadLists(ctx);
+  const i = lists.include.length;
+  const x = lists.ignore.length;
+  statusRunItem.text = `$(package) Repomix Run  I:${i}  X:${x}`;
+  statusRunItem.tooltip = "\u8FD0\u884C repomix\uFF08\u4F7F\u7528\u5F53\u524D include/ignore \u5217\u8868\uFF09";
+  statusRunItem.show();
+  statusClearItem.text = `$(trash) Repomix Clear`;
+  statusClearItem.tooltip = "\u6E05\u7A7A include/ignore \u5217\u8868";
+  statusClearItem.show();
+}
+async function addPaths(ctx, kind, uri, uris) {
+  const picked = uris && uris.length > 0 ? uris : uri ? [uri] : [];
+  if (picked.length === 0) {
     const ed = vscode.window.activeTextEditor;
     if (!ed) {
       vscode.window.showWarningMessage("No file selected.");
       return;
     }
-    uri = ed.document.uri;
-  }
-  const rel = toWorkspaceRelative(uri);
-  if (!rel) {
-    vscode.window.showWarningMessage("File is not inside an opened workspace folder.");
-    return;
+    picked.push(ed.document.uri);
   }
   const lists = await loadLists(ctx);
-  lists[kind].push(rel);
+  let added = 0;
+  let skipped = 0;
+  for (const u of picked) {
+    const rel = toWorkspaceRelative(u);
+    if (!rel) {
+      skipped++;
+      continue;
+    }
+    if (!lists[kind].includes(rel)) {
+      lists[kind].push(rel);
+      added++;
+    }
+  }
   await saveLists(ctx, lists);
+  await updateStatusBar(ctx);
   vscode.window.setStatusBarMessage(
-    `Repomix Helper: added to ${kind}: ${rel}`,
+    `Repomix Helper: ${kind} +${added}\uFF08\u8DF3\u8FC7 ${skipped}\uFF09`,
     2500
   );
 }
@@ -85,20 +115,21 @@ async function showLists(ctx) {
 
 Ignore (${lists.ignore.length}):
 ` + (lists.ignore.join("\n") || "(empty)");
-  vscode.window.showInformationMessage("Repomix Helper lists shown in Output.");
-  const out = vscode.window.createOutputChannel("Repomix Helper");
+  vscode.window.showInformationMessage("Repomix Helper \u5217\u8868\u5DF2\u8F93\u51FA\u5230 Output \u9762\u677F\u3002");
+  const out = getOutput();
   out.clear();
   out.appendLine(msg);
   out.show(true);
 }
 async function clearLists(ctx) {
   await saveLists(ctx, { include: [], ignore: [] });
-  vscode.window.showInformationMessage("Repomix Helper: cleared include/ignore lists.");
+  await updateStatusBar(ctx);
+  vscode.window.showInformationMessage("Repomix Helper: \u5DF2\u6E05\u7A7A include/ignore \u5217\u8868\u3002");
 }
 async function runRepomix(ctx) {
   const lists = await loadLists(ctx);
   if (lists.include.length === 0) {
-    vscode.window.showWarningMessage("Repomix Helper: include list is empty.");
+    vscode.window.showWarningMessage("Repomix Helper: include \u5217\u8868\u4E3A\u7A7A\u3002");
     return;
   }
   const cfg = vscode.workspace.getConfiguration("repomixHelper");
@@ -131,22 +162,37 @@ async function runRepomix(ctx) {
   };
   vscode.tasks.executeTask(task);
 }
-function activate(context) {
+async function activate(context) {
+  statusRunItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  statusRunItem.command = "repomixHelper.run";
+  statusClearItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    99
+  );
+  statusClearItem.command = "repomixHelper.clear";
+  context.subscriptions.push(statusRunItem, statusClearItem);
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "repomixHelper.addInclude",
-      (uri) => addPath(context, "include", uri)
+      (uri, uris) => addPaths(context, "include", uri, uris)
     ),
     vscode.commands.registerCommand(
       "repomixHelper.addIgnore",
-      (uri) => addPath(context, "ignore", uri)
+      (uri, uris) => addPaths(context, "ignore", uri, uris)
     ),
     vscode.commands.registerCommand("repomixHelper.run", () => runRepomix(context)),
     vscode.commands.registerCommand("repomixHelper.show", () => showLists(context)),
     vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context))
   );
+  await updateStatusBar(context);
 }
 function deactivate() {
+  outputChannel?.dispose();
+  statusRunItem?.dispose();
+  statusClearItem?.dispose();
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

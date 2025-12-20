@@ -90,6 +90,10 @@ repomix --include "src/App.vue,src/views/index.vue" --ignore "src/views/index.vu
 * 支持一键执行 repomix
 * 支持查看/清空列表
 
+### 0.1.0
+
+* 新增：Status bar actions (Run/Clear) + live counters
+* 新增：Multi-select add include/ignore from Explorer
 ---
 
 ## 反馈与贡献

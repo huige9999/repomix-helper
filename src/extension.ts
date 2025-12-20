@@ -5,6 +5,18 @@ type Lists = { include: string[]; ignore: string[] };
 
 const KEY = "repomixHelper.lists";
 
+// ---- UI singletons ----
+let outputChannel: vscode.OutputChannel | undefined;
+let statusRunItem: vscode.StatusBarItem | undefined;
+let statusClearItem: vscode.StatusBarItem | undefined;
+
+function getOutput() {
+  if (!outputChannel) {
+    outputChannel = vscode.window.createOutputChannel("Repomix Helper");
+  }
+  return outputChannel;
+}
+
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr)).sort();
 }
@@ -29,32 +41,71 @@ async function saveLists(ctx: vscode.ExtensionContext, lists: Lists) {
   });
 }
 
-async function addPath(
+async function updateStatusBar(ctx: vscode.ExtensionContext) {
+  if (!statusRunItem || !statusClearItem) return;
+
+  const lists = await loadLists(ctx);
+  const i = lists.include.length;
+  const x = lists.ignore.length;
+
+  // 你可以换成更喜欢的图标：$(play) / $(rocket) / $(package)
+  statusRunItem.text = `$(package) Repomix Run  I:${i}  X:${x}`;
+  statusRunItem.tooltip = "运行 repomix（使用当前 include/ignore 列表）";
+  statusRunItem.show();
+
+  statusClearItem.text = `$(trash) Repomix Clear`;
+  statusClearItem.tooltip = "清空 include/ignore 列表";
+  statusClearItem.show();
+}
+
+/**
+ * 支持：
+ * - 单选右键：uri
+ * - 多选右键：uris（第二参数）
+ * - 命令面板触发：没有 uri/uris → 回退到当前编辑器文件
+ */
+async function addPaths(
   ctx: vscode.ExtensionContext,
   kind: "include" | "ignore",
-  uri?: vscode.Uri
+  uri?: vscode.Uri,
+  uris?: vscode.Uri[]
 ) {
-  if (!uri) {
+  const picked: vscode.Uri[] =
+    uris && uris.length > 0 ? uris : uri ? [uri] : [];
+
+  if (picked.length === 0) {
     const ed = vscode.window.activeTextEditor;
     if (!ed) {
       vscode.window.showWarningMessage("No file selected.");
       return;
     }
-    uri = ed.document.uri;
-  }
-
-  const rel = toWorkspaceRelative(uri);
-  if (!rel) {
-    vscode.window.showWarningMessage("File is not inside an opened workspace folder.");
-    return;
+    picked.push(ed.document.uri);
   }
 
   const lists = await loadLists(ctx);
-  lists[kind].push(rel);
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const u of picked) {
+    const rel = toWorkspaceRelative(u);
+    if (!rel) {
+      skipped++;
+      continue;
+    }
+
+    // 去重加入（saveLists 也会 Set+sort，但这里先算 added 更准确）
+    if (!lists[kind].includes(rel)) {
+      lists[kind].push(rel);
+      added++;
+    }
+  }
+
   await saveLists(ctx, lists);
+  await updateStatusBar(ctx);
 
   vscode.window.setStatusBarMessage(
-    `Repomix Helper: added to ${kind}: ${rel}`,
+    `Repomix Helper: ${kind} +${added}（跳过 ${skipped}）`,
     2500
   );
 }
@@ -66,8 +117,9 @@ async function showLists(ctx: vscode.ExtensionContext) {
     (lists.include.join("\n") || "(empty)") +
     `\n\nIgnore (${lists.ignore.length}):\n` +
     (lists.ignore.join("\n") || "(empty)");
-  vscode.window.showInformationMessage("Repomix Helper lists shown in Output.");
-  const out = vscode.window.createOutputChannel("Repomix Helper");
+
+  vscode.window.showInformationMessage("Repomix Helper 列表已输出到 Output 面板。");
+  const out = getOutput();
   out.clear();
   out.appendLine(msg);
   out.show(true);
@@ -75,20 +127,21 @@ async function showLists(ctx: vscode.ExtensionContext) {
 
 async function clearLists(ctx: vscode.ExtensionContext) {
   await saveLists(ctx, { include: [], ignore: [] });
-  vscode.window.showInformationMessage("Repomix Helper: cleared include/ignore lists.");
+  await updateStatusBar(ctx);
+  vscode.window.showInformationMessage("Repomix Helper: 已清空 include/ignore 列表。");
 }
 
 async function runRepomix(ctx: vscode.ExtensionContext) {
   const lists = await loadLists(ctx);
   if (lists.include.length === 0) {
-    vscode.window.showWarningMessage("Repomix Helper: include list is empty.");
+    vscode.window.showWarningMessage("Repomix Helper: include 列表为空。");
     return;
   }
 
   const cfg = vscode.workspace.getConfiguration("repomixHelper");
   const repomixCommand = cfg.get<string>("repomixCommand") || "repomix";
 
-  // 你现在的习惯是逗号隔开：--include "a,b" --ignore "c,d"
+  // 逗号隔开：--include "a,b" --ignore "c,d"
   const includeArg = lists.include.join(",");
   const args: string[] = ["--include", includeArg];
 
@@ -97,7 +150,6 @@ async function runRepomix(ctx: vscode.ExtensionContext) {
     args.push("--ignore", ignoreArg);
   }
 
-  // 用 VS Code Task 执行，比自己拼 shell 字符串更少引号地狱
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     vscode.window.showWarningMessage("No workspace folder opened.");
@@ -125,18 +177,42 @@ async function runRepomix(ctx: vscode.ExtensionContext) {
   vscode.tasks.executeTask(task);
 }
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+  // ---- status bar items ----
+  statusRunItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  statusRunItem.command = "repomixHelper.run";
+
+  statusClearItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    99
+  );
+  statusClearItem.command = "repomixHelper.clear";
+
+  context.subscriptions.push(statusRunItem, statusClearItem);
+
+  // ---- commands ----
   context.subscriptions.push(
-    vscode.commands.registerCommand("repomixHelper.addInclude", (uri: vscode.Uri) =>
-      addPath(context, "include", uri)
+    vscode.commands.registerCommand(
+      "repomixHelper.addInclude",
+      (uri: vscode.Uri, uris?: vscode.Uri[]) => addPaths(context, "include", uri, uris)
     ),
-    vscode.commands.registerCommand("repomixHelper.addIgnore", (uri: vscode.Uri) =>
-      addPath(context, "ignore", uri)
+    vscode.commands.registerCommand(
+      "repomixHelper.addIgnore",
+      (uri: vscode.Uri, uris?: vscode.Uri[]) => addPaths(context, "ignore", uri, uris)
     ),
     vscode.commands.registerCommand("repomixHelper.run", () => runRepomix(context)),
     vscode.commands.registerCommand("repomixHelper.show", () => showLists(context)),
     vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context))
   );
+
+  await updateStatusBar(context);
 }
 
-export function deactivate() {}
+export function deactivate() {
+  outputChannel?.dispose();
+  statusRunItem?.dispose();
+  statusClearItem?.dispose();
+}

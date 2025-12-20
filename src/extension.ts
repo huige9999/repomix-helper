@@ -110,20 +110,6 @@ async function addPaths(
   );
 }
 
-async function showLists(ctx: vscode.ExtensionContext) {
-  const lists = await loadLists(ctx);
-  const msg =
-    `Include (${lists.include.length}):\n` +
-    (lists.include.join("\n") || "(empty)") +
-    `\n\nIgnore (${lists.ignore.length}):\n` +
-    (lists.ignore.join("\n") || "(empty)");
-
-  vscode.window.showInformationMessage("Repomix Helper 列表已输出到 Output 面板。");
-  const out = getOutput();
-  out.clear();
-  out.appendLine(msg);
-  out.show(true);
-}
 
 async function clearLists(ctx: vscode.ExtensionContext) {
   await saveLists(ctx, { include: [], ignore: [] });
@@ -177,6 +163,45 @@ async function runRepomix(ctx: vscode.ExtensionContext) {
   vscode.tasks.executeTask(task);
 }
 
+async function exportRepomixCommand(ctx: vscode.ExtensionContext) {
+  const lists = await loadLists(ctx);
+
+  const cfg = vscode.workspace.getConfiguration("repomixHelper");
+  const repomixCommand = cfg.get<string>("repomixCommand") || "repomix";
+
+  const includeArg = lists.include.join(",");
+  const ignoreArg = lists.ignore.join(",");
+
+  // 你要求：有就输出，没有就不带该参数
+  const parts: string[] = [repomixCommand];
+
+  if (includeArg) {
+    parts.push(`--include "${includeArg}"`);
+  }
+
+  if (ignoreArg) {
+    parts.push(`--ignore "${ignoreArg}"`);
+  }
+
+  const cmd = parts.join(" ");
+
+  const out = vscode.window.createOutputChannel("Repomix Helper");
+  out.show(true);
+  out.appendLine("=== Repomix Export ===");
+  out.appendLine(cmd);
+  out.appendLine("");
+  out.appendLine(`Include: ${lists.include.length}, Ignore: ${lists.ignore.length}`);
+  out.appendLine("======================");
+
+  // 如果 include 为空，提醒一下（repomix 通常没有 include 会没意义）
+  if (!includeArg) {
+    vscode.window.showWarningMessage("Repomix Helper: include 列表为空，导出的命令可能无法打包你期望的内容。");
+  } else {
+    vscode.window.showInformationMessage("Repomix Helper: 已导出命令到 Output（Repomix Helper）。");
+  }
+}
+
+
 export async function activate(context: vscode.ExtensionContext) {
   // ---- status bar items ----
   statusRunItem = vscode.window.createStatusBarItem(
@@ -204,8 +229,10 @@ export async function activate(context: vscode.ExtensionContext) {
       (uri: vscode.Uri, uris?: vscode.Uri[]) => addPaths(context, "ignore", uri, uris)
     ),
     vscode.commands.registerCommand("repomixHelper.run", () => runRepomix(context)),
-    vscode.commands.registerCommand("repomixHelper.show", () => showLists(context)),
-    vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context))
+    vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context)),
+    vscode.commands.registerCommand("repomixHelper.export", () =>
+      exportRepomixCommand(context)
+    ),
   );
 
   await updateStatusBar(context);

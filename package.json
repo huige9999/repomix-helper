@@ -26,12 +26,12 @@
         "title": "Repomix: Run"
       },
       {
-        "command": "repomixHelper.show",
-        "title": "Repomix: Show List"
-      },
-      {
         "command": "repomixHelper.clear",
         "title": "Repomix: Clear List"
+      },
+      {
+        "command": "repomixHelper.export",
+        "title": "Repomix: Export Command"
       }
     ],
     "menus": {

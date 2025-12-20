@@ -96,6 +96,11 @@ repomix --include "src/App.vue,src/views/index.vue" --ignore "src/views/index.vu
 * 新增：Multi-select add include/ignore from Explorer
 ---
 
+## 0.2.0
+- 新增：Repomix: Export Command（导出当前 include/ignore 拼接后的 repomix 命令到 Output，便于复制复用）
+- 去掉：“Show List”
+
+
 ## 反馈与贡献
 
 欢迎提交 Issue / PR：

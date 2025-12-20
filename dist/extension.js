@@ -40,12 +40,6 @@ var KEY = "repomixHelper.lists";
 var outputChannel;
 var statusRunItem;
 var statusClearItem;
-function getOutput() {
-  if (!outputChannel) {
-    outputChannel = vscode.window.createOutputChannel("Repomix Helper");
-  }
-  return outputChannel;
-}
 function uniqSorted(arr) {
   return Array.from(new Set(arr)).sort();
 }
@@ -108,19 +102,6 @@ async function addPaths(ctx, kind, uri, uris) {
     2500
   );
 }
-async function showLists(ctx) {
-  const lists = await loadLists(ctx);
-  const msg = `Include (${lists.include.length}):
-` + (lists.include.join("\n") || "(empty)") + `
-
-Ignore (${lists.ignore.length}):
-` + (lists.ignore.join("\n") || "(empty)");
-  vscode.window.showInformationMessage("Repomix Helper \u5217\u8868\u5DF2\u8F93\u51FA\u5230 Output \u9762\u677F\u3002");
-  const out = getOutput();
-  out.clear();
-  out.appendLine(msg);
-  out.show(true);
-}
 async function clearLists(ctx) {
   await saveLists(ctx, { include: [], ignore: [] });
   await updateStatusBar(ctx);
@@ -162,6 +143,33 @@ async function runRepomix(ctx) {
   };
   vscode.tasks.executeTask(task);
 }
+async function exportRepomixCommand(ctx) {
+  const lists = await loadLists(ctx);
+  const cfg = vscode.workspace.getConfiguration("repomixHelper");
+  const repomixCommand = cfg.get("repomixCommand") || "repomix";
+  const includeArg = lists.include.join(",");
+  const ignoreArg = lists.ignore.join(",");
+  const parts = [repomixCommand];
+  if (includeArg) {
+    parts.push(`--include "${includeArg}"`);
+  }
+  if (ignoreArg) {
+    parts.push(`--ignore "${ignoreArg}"`);
+  }
+  const cmd = parts.join(" ");
+  const out = vscode.window.createOutputChannel("Repomix Helper");
+  out.show(true);
+  out.appendLine("=== Repomix Export ===");
+  out.appendLine(cmd);
+  out.appendLine("");
+  out.appendLine(`Include: ${lists.include.length}, Ignore: ${lists.ignore.length}`);
+  out.appendLine("======================");
+  if (!includeArg) {
+    vscode.window.showWarningMessage("Repomix Helper: include \u5217\u8868\u4E3A\u7A7A\uFF0C\u5BFC\u51FA\u7684\u547D\u4EE4\u53EF\u80FD\u65E0\u6CD5\u6253\u5305\u4F60\u671F\u671B\u7684\u5185\u5BB9\u3002");
+  } else {
+    vscode.window.showInformationMessage("Repomix Helper: \u5DF2\u5BFC\u51FA\u547D\u4EE4\u5230 Output\uFF08Repomix Helper\uFF09\u3002");
+  }
+}
 async function activate(context) {
   statusRunItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -184,8 +192,11 @@ async function activate(context) {
       (uri, uris) => addPaths(context, "ignore", uri, uris)
     ),
     vscode.commands.registerCommand("repomixHelper.run", () => runRepomix(context)),
-    vscode.commands.registerCommand("repomixHelper.show", () => showLists(context)),
-    vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context))
+    vscode.commands.registerCommand("repomixHelper.clear", () => clearLists(context)),
+    vscode.commands.registerCommand(
+      "repomixHelper.export",
+      () => exportRepomixCommand(context)
+    )
   );
   await updateStatusBar(context);
 }

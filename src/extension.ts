@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 type Lists = { include: string[]; ignore: string[] };
 
@@ -201,6 +205,42 @@ async function exportRepomixCommand(ctx: vscode.ExtensionContext) {
   }
 }
 
+/**
+ * 核心功能：将当前活动编辑器对应的物理文件复制到 Windows 剪贴板
+ */
+async function copyActiveFileToClipboard() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const filePath = editor.document.uri.fsPath;
+
+  try {
+    let windowsPath = filePath;
+    
+    // 1. WSL 路径转换
+    if (process.platform === 'linux' && filePath.startsWith('/')) {
+      const { stdout } = await execAsync(`wslpath -w "${filePath}"`);
+      windowsPath = stdout.trim();
+    }
+
+    // 2. 关键修复：针对 Shell 环境进行转义
+    // 将所有的 \ 替换为 \\，这样传给 PowerShell 时才是正确的
+    const escapedPath = windowsPath.replace(/\\/g, '\\\\');
+
+    // 3. 使用更健壮的 PowerShell 命令
+    // 使用 -LiteralPath 避免通配符问题
+    // 在命令两端加上转义的双引号
+    const psCommand = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath '${escapedPath}'"`;
+
+    await execAsync(psCommand);
+    vscode.window.showInformationMessage(`✅ 已成功复制实体文件: ${path.basename(filePath)}`);
+  } catch (err: any) {
+    // 打印更详细的错误以便调试
+    console.error(err);
+    vscode.window.showErrorMessage("复制失败: " + err.message);
+  }
+}
+
 
 export async function activate(context: vscode.ExtensionContext) {
   // ---- status bar items ----
@@ -233,6 +273,9 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("repomixHelper.export", () =>
       exportRepomixCommand(context)
     ),
+    vscode.commands.registerCommand("repomixHelper.copyFileToClipboard", () =>
+      copyActiveFileToClipboard()
+    )
   );
 
   await updateStatusBar(context);

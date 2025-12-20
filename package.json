@@ -33,6 +33,10 @@
       {
         "command": "repomixHelper.export",
         "title": "Repomix: Export Command"
+      },
+      {
+        "command": "repomixHelper.copyFileToClipboard",
+        "title": "Repomix: Copy Current File to Clipboard"
       }
     ],
     "menus": {
@@ -40,12 +44,24 @@
         {
           "command": "repomixHelper.addInclude",
           "when": "resourceScheme == file",
-          "group": "navigation@1"
+          "group": "z_repomix@1"
         },
         {
           "command": "repomixHelper.addIgnore",
           "when": "resourceScheme == file",
-          "group": "navigation@2"
+          "group": "z_repomix@2"
+        },
+        {
+          "command": "repomixHelper.copyFileToClipboard",
+          "when": "resourceScheme == file",
+          "group": "z_repomix@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "repomixHelper.copyFileToClipboard",
+          "when": "resourceScheme == file",
+          "group": "z_repomix@1"
         }
       ]
     },

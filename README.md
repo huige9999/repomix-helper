@@ -100,6 +100,10 @@ repomix --include "src/App.vue,src/views/index.vue" --ignore "src/views/index.vu
 - 新增：Repomix: Export Command（导出当前 include/ignore 拼接后的 repomix 命令到 Output，便于复制复用）
 - 去掉：“Show List”
 
+## 0.3.0
+- 新增：复制当前激活文件到剪贴板
+- 调整repomix菜单的位置，将它们合并到一个组里面
+
 
 ## 反馈与贡献
 

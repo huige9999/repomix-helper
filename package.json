@@ -2,13 +2,14 @@
   "name": "repomix-helper",
   "displayName": "repomix-helper",
   "description": "Collect include/ignore relative paths and run repomix in one click.",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "engines": {
     "vscode": "^1.107.0"
   },
   "categories": [
     "Other"
   ],
+  "repository": "https://github.com/huige9999/repomix-helper",
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {

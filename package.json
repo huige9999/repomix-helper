@@ -14,10 +14,50 @@
   "contributes": {
     "commands": [
       {
-        "command": "repomix-helper.helloWorld",
-        "title": "Hello World"
+        "command": "repomixHelper.addInclude",
+        "title": "Repomix: Add to Include"
+      },
+      {
+        "command": "repomixHelper.addIgnore",
+        "title": "Repomix: Add to Ignore"
+      },
+      {
+        "command": "repomixHelper.run",
+        "title": "Repomix: Run"
+      },
+      {
+        "command": "repomixHelper.show",
+        "title": "Repomix: Show List"
+      },
+      {
+        "command": "repomixHelper.clear",
+        "title": "Repomix: Clear List"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "repomixHelper.addInclude",
+          "when": "resourceScheme == file",
+          "group": "navigation@1"
+        },
+        {
+          "command": "repomixHelper.addIgnore",
+          "when": "resourceScheme == file",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Repomix Helper",
+      "properties": {
+        "repomixHelper.repomixCommand": {
+          "type": "string",
+          "default": "repomix",
+          "description": "CLI command to run repomix (e.g., repomix or npx repomix)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

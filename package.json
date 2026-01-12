@@ -2,7 +2,7 @@
   "name": "repomix-helper",
   "displayName": "repomix-helper",
   "description": "Collect include/ignore relative paths and run repomix in one click.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "engines": {
     "vscode": "^1.107.0"
   },
@@ -41,6 +41,23 @@
     ],
     "menus": {
       "explorer/context": [
+        {
+          "command": "repomixHelper.addInclude",
+          "when": "resourceScheme == file",
+          "group": "z_repomix@1"
+        },
+        {
+          "command": "repomixHelper.addIgnore",
+          "when": "resourceScheme == file",
+          "group": "z_repomix@2"
+        },
+        {
+          "command": "repomixHelper.copyFileToClipboard",
+          "when": "resourceScheme == file",
+          "group": "z_repomix@3"
+        }
+      ],
+      "editor/title/context": [
         {
           "command": "repomixHelper.addInclude",
           "when": "resourceScheme == file",
